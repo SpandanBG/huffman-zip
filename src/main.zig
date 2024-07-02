@@ -1,24 +1,50 @@
 const std = @import("std");
 
+const Allocator = std.mem.Allocator;
+
+const RunType = enum {
+    Encode,
+    Decode,
+    None,
+};
+
+const encode_flag = "-e";
+const decode_flag = "-d";
+
 pub fn main() !void {
-    // Prints to stderr (it's a shortcut based on `std.io.getStdErr()`)
-    std.debug.print("All your {s} are belong to us.\n", .{"codebase"});
-
-    // stdout is for the actual output of your application, for example if you
-    // are implementing gzip, then only the compressed bytes should be sent to
-    // stdout, not any debugging messages.
-    const stdout_file = std.io.getStdOut().writer();
-    var bw = std.io.bufferedWriter(stdout_file);
-    const stdout = bw.writer();
-
-    try stdout.print("Run `zig build test` to run the tests.\n", .{});
-
-    try bw.flush(); // don't forget to flush!
+    switch (try get_run_type()) {
+        .Encode => try encode(),
+        .Decode => try decode(),
+        else => invalid_cmd(),
+    }
 }
 
-test "simple test" {
-    var list = std.ArrayList(i32).init(std.testing.allocator);
-    defer list.deinit(); // try commenting this out and see if zig detects the memory leak!
-    try list.append(42);
-    try std.testing.expectEqual(@as(i32, 42), list.pop());
+fn get_run_type() !RunType {
+    const allocator = std.heap.page_allocator;
+    var args_iter = try std.process.ArgIterator.initWithAllocator(allocator);
+
+    _ = args_iter.next(); // skip first arg
+    const run_type = args_iter.next() orelse return RunType.None;
+
+    if (std.mem.eql(u8, encode_flag, run_type)) {
+        return RunType.Encode;
+    } else if (std.mem.eql(u8, decode_flag, run_type)) {
+        return RunType.Decode;
+    }
+
+    return RunType.None;
+}
+
+fn encode() !void {
+    var in = std.io.getStdIn();
+    defer in.close();
+
+    var out = std.io.getStdOut();
+    defer out.close();
+}
+
+fn decode() !void {}
+
+fn invalid_cmd() void {
+    std.log.err("invalid arg\nusage: (-e|-d)\n\t-e\tencode input\n\t-d\tdecode input", .{});
 }
