@@ -45,14 +45,15 @@ fn encode() !void {
     var data = try read_in(in);
     defer data.deinit();
 
-    try build_huffman_tree(data);
+    const root = try build_huffman_tree(data);
+    _ = root.dfs(@as(u8, 0));
 }
 
 fn decode() !void {}
 
 const node = struct {
     size: u64,
-    char: u8,
+    char: ?u8,
 
     left: ?*node,
     right: ?*node,
@@ -62,9 +63,31 @@ const node = struct {
     fn lt(_: void, a: *Self, b: *Self) bool {
         return a.size < b.size;
     }
+
+    fn dfs(self: *Self, char: u8) ?*node {
+        if (self.char) |c| {
+            std.log.debug("{d}-{d}", .{ self.char.?, self.size });
+            if (c == char) return self;
+            return null;
+        } else {
+            std.log.debug("in", .{});
+        }
+
+        if (self.left) |l| {
+            std.log.err("left <_<", .{});
+            if (l.dfs(char)) |n| return n;
+        }
+
+        if (self.right) |r| {
+            std.log.err("right >_>", .{});
+            if (r.dfs(char)) |n| return n;
+        }
+
+        return null;
+    }
 };
 
-fn build_huffman_tree(data: std.ArrayList(u8)) !void {
+fn build_huffman_tree(data: std.ArrayList(u8)) !*node {
     const allocator = std.heap.page_allocator;
 
     // ------------ count chars
@@ -76,28 +99,60 @@ fn build_huffman_tree(data: std.ArrayList(u8)) !void {
         if (all_ascii[char] == 0) unique_chars += 1;
         all_ascii[char] += 1;
     }
-    // -------------------------
+    // ------------------------
 
     // ------------ create min queue
     var min_queue = try allocator.alloc(*node, unique_chars);
     defer allocator.free(min_queue);
 
-    var pi: usize = 0;
+    var qi: usize = 0; // queue index
     for (all_ascii, 0..) |size, i| {
         if (size == 0) continue;
         const ch: u8 = @intCast(i);
 
-        min_queue[pi] = try allocator.create(node);
-        min_queue[pi].size = size;
-        min_queue[pi].char = ch;
+        var nn = try allocator.create(node);
+        nn.size = size;
+        nn.char = ch;
 
-        pi += 1;
+        min_queue[qi] = nn;
+        qi += 1;
     }
 
     std.sort.insertion(*node, min_queue, {}, node.lt);
-    // ----------------------------
+    // -----------------------------
+    for (min_queue) |item| std.log.info("{d}-{d}", .{ item.char.?, item.size });
 
-    for (min_queue) |item| std.log.info("{d}-{d}", .{ item.char, item.size });
+    // ------------- create tree
+    qi = 0;
+    while (qi < min_queue.len) {
+        if (min_queue.len - qi <= 1) break;
+
+        var internal_node = try allocator.create(node);
+        internal_node.char = null;
+
+        const first_node = min_queue[qi];
+        const second_node = min_queue[qi + 1];
+
+        internal_node.size = first_node.size + second_node.size;
+
+        if (node.lt({}, first_node, second_node)) {
+            internal_node.left = first_node;
+            internal_node.right = second_node;
+        } else {
+            internal_node.left = second_node;
+            internal_node.right = first_node;
+        }
+
+        min_queue[qi + 1] = internal_node;
+        std.sort.insertion(*node, min_queue, {}, node.lt);
+
+        qi += 1;
+    }
+
+    const root = min_queue[min_queue.len - 1];
+    // -------------------------
+
+    return root;
 }
 
 fn read_in(in: std.fs.File) !std.ArrayList(u8) {
