@@ -46,7 +46,7 @@ fn encode() !void {
     defer data.deinit();
 
     const root = try build_huffman_tree(data);
-    _ = root.dfs(@as(u8, 0));
+    _ = root.dfs(@as(u8, 0), 0);
 }
 
 fn decode() !void {}
@@ -64,25 +64,27 @@ const node = struct {
         return a.size < b.size;
     }
 
-    fn dfs(self: *Self, char: u8) ?*node {
+    fn dfs(self: *Self, char: u8, bin: u64) ?u64 {
         if (self.char) |c| {
-            std.log.debug("{d}-{d}", .{ self.char.?, self.size });
-            if (c == char) return self;
-            return null;
-        } else {
-            std.log.debug("in", .{});
+            // std.log.debug("({d})-{b}", .{ self.char.?, bin });
+            return if (c == char) bin else null;
         }
 
-        if (self.left) |l| {
-            std.log.err("left <_<", .{});
-            if (l.dfs(char)) |n| return n;
-        }
+        // std.log.debug("in-{b}", .{bin});
 
-        if (self.right) |r| {
-            std.log.err("right >_>", .{});
-            if (r.dfs(char)) |n| return n;
-        }
+        const n_bin = bin << 1;
 
+        // std.log.err("left <_<", .{});
+        if (self.left) |l| if (l.dfs(char, n_bin)) |left_bin| {
+            return left_bin;
+        };
+
+        // std.log.err("right >_>", .{});
+        if (self.right) |r| if (r.dfs(char, n_bin + 1)) |right_bin| {
+            return right_bin;
+        };
+
+        // std.log.err("exit in-{b}", .{bin});
         return null;
     }
 };
@@ -120,7 +122,6 @@ fn build_huffman_tree(data: std.ArrayList(u8)) !*node {
 
     std.sort.insertion(*node, min_queue, {}, node.lt);
     // -----------------------------
-    for (min_queue) |item| std.log.info("{d}-{d}", .{ item.char.?, item.size });
 
     // ------------- create tree
     qi = 0;
