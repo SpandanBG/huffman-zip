@@ -50,13 +50,16 @@ fn encode() !void {
 
 fn decode() !void {}
 
-const size_pair = struct {
+const node = struct {
     size: u64,
     char: u8,
 
+    left: ?*node,
+    right: ?*node,
+
     const Self = @This();
 
-    fn lt(_: void, a: Self, b: Self) bool {
+    fn lt(_: void, a: *Self, b: *Self) bool {
         return a.size < b.size;
     }
 };
@@ -75,20 +78,26 @@ fn build_huffman_tree(data: std.ArrayList(u8)) !void {
     }
     // -------------------------
 
-    // ------------ create sorted count-char pairs
-    var pairs = try allocator.alloc(size_pair, unique_chars);
-    defer allocator.free(pairs);
+    // ------------ create min queue
+    var min_queue = try allocator.alloc(*node, unique_chars);
+    defer allocator.free(min_queue);
 
     var pi: usize = 0;
     for (all_ascii, 0..) |size, i| {
         if (size == 0) continue;
         const ch: u8 = @intCast(i);
-        pairs[pi] = .{ .size = size, .char = ch };
+
+        min_queue[pi] = try allocator.create(node);
+        min_queue[pi].size = size;
+        min_queue[pi].char = ch;
+
         pi += 1;
     }
 
-    std.sort.insertion(size_pair, pairs[0..], {}, size_pair.lt);
+    std.sort.insertion(*node, min_queue, {}, node.lt);
     // ----------------------------
+
+    for (min_queue) |item| std.log.info("{d}-{d}", .{ item.char, item.size });
 }
 
 fn read_in(in: std.fs.File) !std.ArrayList(u8) {
