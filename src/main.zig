@@ -46,7 +46,17 @@ fn encode() !void {
     defer data.deinit();
 
     const root = try build_huffman_tree(data);
-    _ = root.dfs(@as(u8, 0), 0);
+
+    var memo = std.AutoHashMap(u8, node.ctx).init(std.heap.page_allocator);
+    defer memo.deinit();
+    for (data.items) |char| {
+        const ctx: node.ctx = memo.get(char) orelse blk: {
+            const c = get_huff_encoding(root, char) orelse unreachable;
+            try memo.put(char, c);
+            break :blk c;
+        };
+        std.debug.print("({c}) - {b} : {d}\n", .{ char, ctx.encoding, ctx.depth });
+    }
 }
 
 fn decode() !void {}
@@ -58,36 +68,42 @@ const node = struct {
     left: ?*node,
     right: ?*node,
 
+    const ctx = struct {
+        encoding: u64,
+        depth: u64,
+    };
+
     const Self = @This();
 
     fn lt(_: void, a: *Self, b: *Self) bool {
         return a.size < b.size;
     }
 
-    fn dfs(self: *Self, char: u8, bin: u64) ?u64 {
+    fn dfs(self: *Self, char: u8, encoding: u64, depth: u64) ?ctx {
         if (self.char) |c| {
-            // std.log.debug("({d})-{b}", .{ self.char.?, bin });
-            return if (c == char) bin else null;
+            return if (c == char) .{
+                .encoding = encoding,
+                .depth = depth,
+            } else null;
         }
 
-        // std.log.debug("in-{b}", .{bin});
+        const n_encoding = encoding << 1;
 
-        const n_bin = bin << 1;
-
-        // std.log.err("left <_<", .{});
-        if (self.left) |l| if (l.dfs(char, n_bin)) |left_bin| {
+        if (self.left) |l| if (l.dfs(char, n_encoding, depth + 1)) |left_bin| {
             return left_bin;
         };
 
-        // std.log.err("right >_>", .{});
-        if (self.right) |r| if (r.dfs(char, n_bin + 1)) |right_bin| {
+        if (self.right) |r| if (r.dfs(char, n_encoding + 1, depth + 1)) |right_bin| {
             return right_bin;
         };
 
-        // std.log.err("exit in-{b}", .{bin});
         return null;
     }
 };
+
+fn get_huff_encoding(root: *node, char: u8) ?node.ctx {
+    return root.dfs(char, 0, 0);
+}
 
 fn build_huffman_tree(data: std.ArrayList(u8)) !*node {
     const allocator = std.heap.page_allocator;
