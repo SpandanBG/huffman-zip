@@ -56,6 +56,7 @@ fn encode() !void {
     var curr_byte: u64 = 0;
     var bit_len: u64 = 0;
 
+    // ----------------------- Prepare Encoding
     for (data.items) |char| {
         const ctx: node.ctx = memo.get(char) orelse blk: {
             const c = get_huff_encoding(root, char) orelse unreachable;
@@ -101,13 +102,17 @@ fn encode() !void {
         }
     }
 
-    var padding_len: u8 = 0; // the number of bits to be truncated when decompressing
+    // -------- Prepare Padding Len Context
+    var padding_len: u8 = 0;
     if (bit_len > 0) {
         padding_len = @intCast(8 - bit_len);
         curr_byte <<= @intCast(padding_len);
         try encoded_buff.append(@intCast(curr_byte));
     }
+    // ------------------------------------
+    // ----------------------------------------
 
+    // --------------- Create Tree Map Context
     var tree_map = std.ArrayList(u8).init(std.heap.page_allocator);
     defer tree_map.deinit();
 
@@ -125,6 +130,7 @@ fn encode() !void {
         if (size == 0) try tree_map.append(0);
         tree_map.items[index_of_size] = if (size == 0) 1 else size;
     }
+    // ---------------------------------------
 
     // ---------------- Write To File
     var wrote = try out.write(&[_]u8{padding_len});
