@@ -46,6 +46,7 @@ fn encode() !void {
     defer data.deinit();
 
     const root = try build_huffman_tree(data);
+    // _ = get_huff_encoding(root, 0);
 
     var memo = std.AutoHashMap(u8, node.ctx).init(std.heap.page_allocator);
     defer memo.deinit();
@@ -68,6 +69,8 @@ const node = struct {
     left: ?*node,
     right: ?*node,
 
+    char_map: [128]u2,
+
     const ctx = struct {
         encoding: u64,
         depth: u64,
@@ -81,11 +84,24 @@ const node = struct {
 
     fn dfs(self: *Self, char: u8, encoding: u64, depth: u64) ?ctx {
         if (self.char) |c| {
+            // std.debug.print("{d}\n", .{c});
             return if (c == char) .{
                 .encoding = encoding,
                 .depth = depth,
             } else null;
         }
+
+        // std.debug.print("L-[", .{});
+        // for (self.char_map, 0..) |c, i| if (c == 1) {
+        //     std.debug.print("{d} ", .{i});
+        // };
+        // std.debug.print("] ", .{});
+
+        // std.debug.print("R-[", .{});
+        // for (self.char_map, 0..) |c, i| if (c == 2) {
+        //     std.debug.print("{d} ", .{i});
+        // };
+        // std.debug.print("]\n", .{});
 
         const n_encoding = encoding << 1;
 
@@ -131,6 +147,8 @@ fn build_huffman_tree(data: std.ArrayList(u8)) !*node {
         var nn = try allocator.create(node);
         nn.size = size;
         nn.char = ch;
+        nn.char_map = std.mem.zeroes([128]u2);
+        nn.char_map[i] = 1;
 
         min_queue[qi] = nn;
         qi += 1;
@@ -146,6 +164,7 @@ fn build_huffman_tree(data: std.ArrayList(u8)) !*node {
 
         var internal_node = try allocator.create(node);
         internal_node.char = null;
+        internal_node.char_map = std.mem.zeroes([128]u2);
 
         const first_node = min_queue[qi];
         const second_node = min_queue[qi + 1];
@@ -154,10 +173,24 @@ fn build_huffman_tree(data: std.ArrayList(u8)) !*node {
 
         if (node.lt({}, first_node, second_node)) {
             internal_node.left = first_node;
+            for (first_node.char_map, 0..) |c, i| if (c > 0) {
+                internal_node.char_map[i] = 1;
+            };
+
             internal_node.right = second_node;
+            for (second_node.char_map, 0..) |c, i| if (c > 0) {
+                internal_node.char_map[i] = 2;
+            };
         } else {
             internal_node.left = second_node;
+            for (second_node.char_map, 0..) |c, i| if (c > 0) {
+                internal_node.char_map[i] = 1;
+            };
+
             internal_node.right = first_node;
+            for (first_node.char_map, 0..) |c, i| if (c > 0) {
+                internal_node.char_map[i] = 2;
+            };
         }
 
         min_queue[qi + 1] = internal_node;
