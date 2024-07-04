@@ -101,10 +101,10 @@ fn encode() !void {
         }
     }
 
-    var truncate_len: u8 = 0; // the number of bits to be truncated when decompressing
+    var padding_len: u8 = 0; // the number of bits to be truncated when decompressing
     if (bit_len > 0) {
-        truncate_len = @intCast(8 - bit_len);
-        curr_byte <<= @intCast(truncate_len);
+        padding_len = @intCast(8 - bit_len);
+        curr_byte <<= @intCast(padding_len);
         try encoded_buff.append(@intCast(curr_byte));
     }
 
@@ -127,7 +127,7 @@ fn encode() !void {
     }
 
     // ---------------- Write To File
-    var wrote = try out.write(&[_]u8{truncate_len});
+    var wrote = try out.write(&[_]u8{padding_len});
     wrote += try out.write(tree_map.items);
     wrote += try out.write(encoded_buff.items);
 }
