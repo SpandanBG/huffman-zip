@@ -101,9 +101,10 @@ fn encode() !void {
         }
     }
 
+    var truncate_len: u8 = 0; // the number of bits to be truncated when decompressing
     if (bit_len > 0) {
-        const filler_bit_len = 8 - bit_len;
-        curr_byte <<= @intCast(filler_bit_len);
+        truncate_len = @intCast(8 - bit_len);
+        curr_byte <<= @intCast(truncate_len);
         try encoded_buff.append(@intCast(curr_byte));
     }
 
