@@ -46,18 +46,69 @@ fn encode() !void {
     defer data.deinit();
 
     const root = try build_huffman_tree(data);
-    // _ = get_huff_encoding(root, 0);
 
     var memo = std.AutoHashMap(u8, node.ctx).init(std.heap.page_allocator);
     defer memo.deinit();
+
+    var encoded_buff = std.ArrayList(u8).init(std.heap.page_allocator);
+    defer encoded_buff.deinit();
+
+    var curr_byte: u64 = 0;
+    var bit_len: u64 = 0;
+
     for (data.items) |char| {
         const ctx: node.ctx = memo.get(char) orelse blk: {
             const c = get_huff_encoding(root, char) orelse unreachable;
             try memo.put(char, c);
             break :blk c;
         };
-        std.debug.print("({c}) - {b} : {d}\n", .{ char, ctx.encoding, ctx.depth });
+
+        if (bit_len == 8) {
+            try encoded_buff.append(@intCast(curr_byte));
+            curr_byte = 0;
+            bit_len = 0;
+        }
+
+        var encoding = ctx.encoding;
+        var encoding_len = ctx.depth;
+
+        if (bit_len + encoding_len <= 8) {
+            curr_byte = (curr_byte << @intCast(encoding_len)) + encoding;
+            bit_len += encoding_len;
+            continue;
+        }
+
+        while (bit_len + encoding_len > 8) {
+            const push_len = 8 - bit_len;
+            const left_over_len = encoding_len - push_len;
+
+            const push_encoding = encoding >> @intCast(left_over_len);
+            const left_over_encoding = (push_encoding << @intCast(left_over_len)) ^ encoding;
+
+            curr_byte = (curr_byte << @intCast(push_len)) + push_encoding;
+            try encoded_buff.append(@intCast(curr_byte));
+
+            if (left_over_len <= 8) {
+                curr_byte = left_over_encoding;
+                bit_len = left_over_len;
+                break;
+            }
+
+            encoding = left_over_encoding;
+            encoding_len = left_over_len;
+            curr_byte = 0;
+            bit_len = 0;
+        }
     }
+
+    if (bit_len > 0) {
+        const filler_bit_len = 8 - bit_len;
+        curr_byte <<= @intCast(filler_bit_len);
+        try encoded_buff.append(@intCast(curr_byte));
+    }
+
+    for (encoded_buff.items) |ch| std.debug.print("{b}-{d},", .{ ch, ch });
+    std.debug.print("\x1b[D\x1b[K\n", .{});
 }
 
 fn decode() !void {}
@@ -69,6 +120,8 @@ const node = struct {
     left: ?*node,
     right: ?*node,
 
+    // must be initialized all 0. index should be marked 1 if present in the
+    // left node. 2 if present in the right node
     char_map: [128]u2,
 
     const ctx = struct {
@@ -84,34 +137,22 @@ const node = struct {
 
     fn dfs(self: *Self, char: u8, encoding: u64, depth: u64) ?ctx {
         if (self.char) |c| {
-            // std.debug.print("{d}\n", .{c});
+            std.log.info("{c}-{b}", .{ c, encoding });
             return if (c == char) .{
                 .encoding = encoding,
                 .depth = depth,
             } else null;
         }
 
-        // std.debug.print("L-[", .{});
-        // for (self.char_map, 0..) |c, i| if (c == 1) {
-        //     std.debug.print("{d} ", .{i});
-        // };
-        // std.debug.print("] ", .{});
-
-        // std.debug.print("R-[", .{});
-        // for (self.char_map, 0..) |c, i| if (c == 2) {
-        //     std.debug.print("{d} ", .{i});
-        // };
-        // std.debug.print("]\n", .{});
-
         const n_encoding = encoding << 1;
 
-        if (self.left) |l| if (l.dfs(char, n_encoding, depth + 1)) |left_bin| {
-            return left_bin;
-        };
+        if (self.char_map[@intCast(char)] == 1) {
+            if (self.left) |l| return l.dfs(char, n_encoding, depth + 1);
+        }
 
-        if (self.right) |r| if (r.dfs(char, n_encoding + 1, depth + 1)) |right_bin| {
-            return right_bin;
-        };
+        if (self.char_map[@intCast(char)] == 2) {
+            if (self.right) |r| return r.dfs(char, n_encoding + 1, depth + 1);
+        }
 
         return null;
     }
