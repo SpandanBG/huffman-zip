@@ -126,11 +126,10 @@ fn encode() !void {
         tree_map.items[index_of_size] = if (size == 0) 1 else size;
     }
 
-    for (tree_map.items) |item| std.debug.print("[{d}]", .{item});
-    std.debug.print("\n", .{});
-
-    for (encoded_buff.items) |ch| std.debug.print("{b}-{d},", .{ ch, ch });
-    std.debug.print("\x1b[D\x1b[K\n", .{});
+    // ---------------- Write To File
+    var wrote = try out.write(&[_]u8{truncate_len});
+    wrote += try out.write(tree_map.items);
+    wrote += try out.write(encoded_buff.items);
 }
 
 fn decode() !void {}
@@ -159,7 +158,6 @@ const node = struct {
 
     fn dfs(self: *Self, char: u8, encoding: u64, depth: u64) ?ctx {
         if (self.char) |c| {
-            std.log.info("{c}-{b}", .{ c, encoding });
             return if (c == char) .{
                 .encoding = encoding,
                 .depth = depth,
