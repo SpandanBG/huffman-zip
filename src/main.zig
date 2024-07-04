@@ -268,14 +268,14 @@ fn build_huffman_tree(data: std.ArrayList(u8)) !*node {
 
 fn split_u64_to_u8s(value: u64) [8]u8 {
     return [_]u8{
-        @intCast(value >> 56),
-        @intCast(value >> 48),
-        @intCast(value >> 40),
-        @intCast(value >> 32),
-        @intCast(value >> 24),
-        @intCast(value >> 16),
-        @intCast(value >> 8),
-        @intCast(value),
+        @intCast((value >> 56) & 0xFF),
+        @intCast((value >> 48) & 0xFF),
+        @intCast((value >> 40) & 0xFF),
+        @intCast((value >> 32) & 0xFF),
+        @intCast((value >> 24) & 0xFF),
+        @intCast((value >> 16) & 0xFF),
+        @intCast((value >> 8) & 0xFF),
+        @intCast(value & 0xFF),
     };
 }
 
