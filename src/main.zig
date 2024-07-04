@@ -108,6 +108,27 @@ fn encode() !void {
         try encoded_buff.append(@intCast(curr_byte));
     }
 
+    var tree_map = std.ArrayList(u8).init(std.heap.page_allocator);
+    defer tree_map.deinit();
+
+    var memoIter = memo.iterator();
+    while (memoIter.next()) |item| {
+        try tree_map.append(@intCast(item.key_ptr.*));
+        const index_of_size = tree_map.items.len;
+        try tree_map.append(0); // placeholder for size
+        var size: u8 = 0;
+        for (split_u64_to_u8s(item.value_ptr.encoding)) |ue| {
+            if (ue == 0) continue;
+            size += 1;
+            try tree_map.append(ue);
+        }
+        if (size == 0) try tree_map.append(0);
+        tree_map.items[index_of_size] = if (size == 0) 1 else size;
+    }
+
+    for (tree_map.items) |item| std.debug.print("[{d}]", .{item});
+    std.debug.print("\n", .{});
+
     for (encoded_buff.items) |ch| std.debug.print("{b}-{d},", .{ ch, ch });
     std.debug.print("\x1b[D\x1b[K\n", .{});
 }
@@ -245,6 +266,19 @@ fn build_huffman_tree(data: std.ArrayList(u8)) !*node {
     // -------------------------
 
     return root;
+}
+
+fn split_u64_to_u8s(value: u64) [8]u8 {
+    return [_]u8{
+        @intCast(value >> 56),
+        @intCast(value >> 48),
+        @intCast(value >> 40),
+        @intCast(value >> 32),
+        @intCast(value >> 24),
+        @intCast(value >> 16),
+        @intCast(value >> 8),
+        @intCast(value),
+    };
 }
 
 fn read_in(in: std.fs.File) !std.ArrayList(u8) {
